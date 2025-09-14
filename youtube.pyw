@@ -29,7 +29,7 @@ def download_with_yt_dlp(url, format_selected):
     os.makedirs("indirilenler", exist_ok=True)
     ydl_opts = {
         'outtmpl': 'indirilenler/%(title)s.%(ext)s',
-        'noplaylist': False,  # Playlist desteklensin
+        'noplaylist': False,
         'quiet': True,
         'no_warnings': True,
     }
@@ -45,8 +45,7 @@ def download_with_yt_dlp(url, format_selected):
         })
     else:  # MP4
         ydl_opts.update({
-            'format': 'bestvideo+bestaudio/best',
-            'merge_output_format': 'mp4',
+            'format': 'best[ext=mp4]/best',  # Tek akışlı, sesli MP4 dosyası
         })
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
