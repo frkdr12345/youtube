@@ -1,12 +1,13 @@
 import os
 import threading
 from tkinter import *
-from tkinter import ttk, messagebox, simpledialog
+from tkinter import ttk, messagebox
 import yt_dlp
 import time
+import shutil
 
-stop_flag = False  
-speed_threshold = 5000  
+stop_flag = False
+speed_threshold = 5000  # byte/sn (otomatik ayarlanacak)
 
 def normalize_url(url):
     if "youtu.be" in url:
@@ -30,9 +31,9 @@ def clear_list():
     url_listbox.delete(0, END)
 
 settings = {
-    'concurrent_fragment_downloads': 5,
-    'fragment_retries': 10,
-    'retry_sleep': 5,
+    'concurrent_fragment_downloads': 10,
+    'fragment_retries': 15,
+    'retry_sleep': 2,
     'format': 'MP4',
     'theme': 'beyaz'
 }
@@ -72,30 +73,42 @@ def open_settings():
     Button(popup, text="Kaydet", command=save_settings).pack(pady=10)
 
 def progress_hook(d):
-    global stop_flag
+    global stop_flag, speed_threshold
     if stop_flag:
         raise Exception("İndirme durduruldu.")
+
     if d['status'] == 'downloading':
         speed = d.get('speed', 0)
         if speed and speed < speed_threshold:
-            raise Exception("Hız çok düşük, yeniden başlatılıyor...")
+            print(f"⚠️ Hız düşük: {speed/1024:.1f} KB/s")
 
 def download_with_yt_dlp(url):
     os.makedirs("indirilenler", exist_ok=True)
     start_time = start_entry.get().strip()
     end_time = end_entry.get().strip()
 
+    # aria2c mevcutsa onu kullan
+    aria2_exists = shutil.which("aria2c") is not None
+
     ydl_opts = {
         'outtmpl': 'indirilenler/%(title)s.%(ext)s',
-        'noplaylist': False,
         'quiet': True,
         'no_warnings': True,
+        'progress_hooks': [progress_hook],
         'concurrent_fragment_downloads': settings['concurrent_fragment_downloads'],
         'fragment_retries': settings['fragment_retries'],
         'retry_sleep': settings['retry_sleep'],
-        'progress_hooks': [progress_hook]
+        'noplaylist': False,
     }
 
+    # Çok hızlı downloader: aria2c
+    if aria2_exists:
+        ydl_opts['downloader'] = 'aria2c'
+        ydl_opts['downloader_args'] = {
+            'aria2c': ['-x', '16', '-k', '1M', '--file-allocation=none']
+        }
+
+    # Format seçimi
     if settings['format'] == "MP3":
         ydl_opts.update({
             'format': 'bestaudio/best',
@@ -106,25 +119,19 @@ def download_with_yt_dlp(url):
             }],
         })
     else:
-        ydl_opts.update({'format': 'best[ext=mp4]/best'})
+        ydl_opts.update({'format': 'bestvideo[ext=mp4]+bestaudio/best'})
 
+    # Belirli süre aralığı
     if start_time or end_time:
         section = f"*{start_time if start_time else '0'}-{end_time if end_time else ''}"
         ydl_opts['download_sections'] = [section]
 
-    while True:
-        try:
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                ydl.download([url])
-            break 
-        except Exception as e:
-            if "Hız çok düşük" in str(e):
-                time.sleep(1)  
-                continue
-            elif "İndirme durduruldu" in str(e):
-                break
-            else:
-                raise e
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([url])
+    except Exception as e:
+        if "İndirme durduruldu" not in str(e):
+            messagebox.showerror("Hata", str(e))
 
 def download_all_thread():
     global stop_flag
@@ -140,12 +147,9 @@ def download_all_thread():
     for url in urls:
         if stop_flag:
             break
-        try:
-            download_with_yt_dlp(url)
-            count += 1
-            update_progress(count)
-        except Exception as e:
-            messagebox.showerror("Hata", f"{url} inmedi:\n{str(e)}")
+        download_with_yt_dlp(url)
+        count += 1
+        update_progress(count)
 
     messagebox.showinfo("Tamamlandı", f"{count} video başarıyla indirildi.")
 
@@ -174,7 +178,7 @@ def apply_theme():
             pass
 
 root = Tk()
-root.title("Yutup")
+root.title("Yutup (Hızlandırılmış)")
 root.geometry("600x700")
 
 Label(root, text="URL:").pack(pady=5)
@@ -191,7 +195,6 @@ Button(btn_frame, text="Temizle", command=clear_list).pack(side=LEFT, padx=5)
 Button(btn_frame, text="Ayarlar", command=open_settings).pack(side=LEFT, padx=5)
 Button(btn_frame, text="Durdur", command=stop_download).pack(side=LEFT, padx=5)
 
-# Format ve Tema
 format_var = StringVar(value=settings['format'])
 Radiobutton(root, text="MP4 (Video)", variable=format_var, value="MP4").pack()
 Radiobutton(root, text="MP3 (Ses)", variable=format_var, value="MP3").pack()
@@ -200,7 +203,6 @@ theme_var = StringVar(value=settings['theme'])
 Label(root, text="Tema:").pack()
 ttk.Combobox(root, textvariable=theme_var, values=["beyaz", "siyah"]).pack()
 
-# Süre aralığı
 Label(root, text="Başlangıç (HH:MM:SS):").pack()
 start_entry = Entry(root, width=20)
 start_entry.pack()
