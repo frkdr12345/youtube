@@ -3,11 +3,11 @@ import threading
 from tkinter import *
 from tkinter import ttk, messagebox
 import yt_dlp
-import time
 import shutil
 
 stop_flag = False
-speed_threshold = 5000  # byte/sn (otomatik ayarlanacak)
+speed_threshold = 5000 
+
 
 def normalize_url(url):
     if "youtu.be" in url:
@@ -30,10 +30,11 @@ def remove_selected():
 def clear_list():
     url_listbox.delete(0, END)
 
+
 settings = {
-    'concurrent_fragment_downloads': 10,
-    'fragment_retries': 15,
-    'retry_sleep': 2,
+    'concurrent_fragment_downloads': 5,
+    'fragment_retries': 20,
+    'retry_sleep': 5,
     'format': 'MP4',
     'theme': 'beyaz'
 }
@@ -72,44 +73,53 @@ def open_settings():
 
     Button(popup, text="Kaydet", command=save_settings).pack(pady=10)
 
+
 def progress_hook(d):
     global stop_flag, speed_threshold
     if stop_flag:
         raise Exception("İndirme durduruldu.")
-
     if d['status'] == 'downloading':
         speed = d.get('speed', 0)
         if speed and speed < speed_threshold:
-            print(f"⚠️ Hız düşük: {speed/1024:.1f} KB/s")
+           
 
 def download_with_yt_dlp(url):
     os.makedirs("indirilenler", exist_ok=True)
     start_time = start_entry.get().strip()
     end_time = end_entry.get().strip()
-
-    # aria2c mevcutsa onu kullan
     aria2_exists = shutil.which("aria2c") is not None
+
+    selected_format = format_var.get()
+    settings['format'] = selected_format  # senkronize
 
     ydl_opts = {
         'outtmpl': 'indirilenler/%(title)s.%(ext)s',
-        'quiet': True,
+        'quiet': False,
         'no_warnings': True,
         'progress_hooks': [progress_hook],
         'concurrent_fragment_downloads': settings['concurrent_fragment_downloads'],
         'fragment_retries': settings['fragment_retries'],
         'retry_sleep': settings['retry_sleep'],
         'noplaylist': False,
+        'retries': 20,             
+        'socket_timeout': 60,    
+        'geo_bypass': False       
     }
 
-    # Çok hızlı downloader: aria2c
     if aria2_exists:
         ydl_opts['downloader'] = 'aria2c'
         ydl_opts['downloader_args'] = {
-            'aria2c': ['-x', '16', '-k', '1M', '--file-allocation=none']
+            'aria2c': [
+                '-x', '8',        
+                '-s', '8',
+                '-k', '1M',
+                '--max-tries=10',
+                '--retry-wait=5',
+                '--file-allocation=none'
+            ]
         }
 
-    # Format seçimi
-    if settings['format'] == "MP3":
+    if selected_format == "MP3":
         ydl_opts.update({
             'format': 'bestaudio/best',
             'postprocessors': [{
@@ -117,11 +127,14 @@ def download_with_yt_dlp(url):
                 'preferredcodec': 'mp3',
                 'preferredquality': '192',
             }],
+            'keepvideo': False
         })
-    else:
-        ydl_opts.update({'format': 'bestvideo[ext=mp4]+bestaudio/best'})
+    else:  # MP4
+        ydl_opts.update({
+            'format': 'bestvideo[ext=mp4]+bestaudio/best',
+            'merge_output_format': 'mp4'
+        })
 
-    # Belirli süre aralığı
     if start_time or end_time:
         section = f"*{start_time if start_time else '0'}-{end_time if end_time else ''}"
         ydl_opts['download_sections'] = [section]
@@ -166,6 +179,7 @@ def stop_download():
     global stop_flag
     stop_flag = True
 
+
 def apply_theme():
     theme = settings['theme']
     bg = "#2e2e2e" if theme == "siyah" else "SystemButtonFace"
@@ -177,8 +191,9 @@ def apply_theme():
         except:
             pass
 
+
 root = Tk()
-root.title("Yutup (Hızlandırılmış)")
+root.title("Yutup")
 root.geometry("600x700")
 
 Label(root, text="URL:").pack(pady=5)
