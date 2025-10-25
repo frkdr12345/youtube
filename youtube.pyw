@@ -6,7 +6,7 @@ import yt_dlp
 import shutil
 
 stop_flag = False
-speed_threshold = 5000 
+speed_threshold = 5000  
 
 
 def normalize_url(url):
@@ -15,6 +15,7 @@ def normalize_url(url):
         return f"https://www.youtube.com/watch?v={video_id}"
     return url
 
+
 def add_url(event=None):
     url = url_entry.get().strip()
     if url:
@@ -22,10 +23,12 @@ def add_url(event=None):
         url_listbox.insert(END, url)
         url_entry.delete(0, END)
 
+
 def remove_selected():
     selected = url_listbox.curselection()
     for index in reversed(selected):
         url_listbox.delete(index)
+
 
 def clear_list():
     url_listbox.delete(0, END)
@@ -38,6 +41,7 @@ settings = {
     'format': 'MP4',
     'theme': 'beyaz'
 }
+
 
 def open_settings():
     popup = Toplevel(root)
@@ -81,7 +85,8 @@ def progress_hook(d):
     if d['status'] == 'downloading':
         speed = d.get('speed', 0)
         if speed and speed < speed_threshold:
-           
+            
+
 
 def download_with_yt_dlp(url):
     os.makedirs("indirilenler", exist_ok=True)
@@ -90,7 +95,7 @@ def download_with_yt_dlp(url):
     aria2_exists = shutil.which("aria2c") is not None
 
     selected_format = format_var.get()
-    settings['format'] = selected_format  # senkronize
+    settings['format'] = selected_format  
 
     ydl_opts = {
         'outtmpl': 'indirilenler/%(title)s.%(ext)s',
@@ -101,16 +106,16 @@ def download_with_yt_dlp(url):
         'fragment_retries': settings['fragment_retries'],
         'retry_sleep': settings['retry_sleep'],
         'noplaylist': False,
-        'retries': 20,             
-        'socket_timeout': 60,    
-        'geo_bypass': False       
+        'retries': 20,
+        'socket_timeout': 60,
+        'geo_bypass': False
     }
 
     if aria2_exists:
         ydl_opts['downloader'] = 'aria2c'
         ydl_opts['downloader_args'] = {
             'aria2c': [
-                '-x', '8',        
+                '-x', '8',
                 '-s', '8',
                 '-k', '1M',
                 '--max-tries=10',
@@ -146,6 +151,7 @@ def download_with_yt_dlp(url):
         if "İndirme durduruldu" not in str(e):
             messagebox.showerror("Hata", str(e))
 
+
 def download_all_thread():
     global stop_flag
     stop_flag = False
@@ -166,14 +172,17 @@ def download_all_thread():
 
     messagebox.showinfo("Tamamlandı", f"{count} video başarıyla indirildi.")
 
+
 def update_progress(value):
     progress_bar['value'] = value
     progress_label.config(text=f"{value}/{progress_bar['maximum']} tamamlandı")
     root.update_idletasks()
 
+
 def start_download_thread():
     thread = threading.Thread(target=download_all_thread)
     thread.start()
+
 
 def stop_download():
     global stop_flag
@@ -190,6 +199,7 @@ def apply_theme():
             widget.configure(bg=bg, fg=fg)
         except:
             pass
+
 
 
 root = Tk()
